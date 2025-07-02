@@ -1,7 +1,7 @@
 # Core
 numpy
 scipy
-pillow==10.2.0
+pillow
 pyyaml
 joblib==1.1.0
 tqdm
