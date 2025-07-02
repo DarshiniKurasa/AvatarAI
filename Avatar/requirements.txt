@@ -1,5 +1,5 @@
 # Core
-numpy==1.23.4
+numpy
 scipy==1.10.1
 pillow==10.2.0
 pyyaml
