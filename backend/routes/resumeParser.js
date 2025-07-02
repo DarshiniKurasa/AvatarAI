@@ -28,7 +28,7 @@ const storage = multer.diskStorage({
 const resumeUpload = multer({ storage: storage });
 
 // Python service URL
-const PYTHON_SERVICE_URL = 'http://127.0.0.1:8000';
+const PYTHON_SERVICE_URL = process.env.PYTHON_SERVICE_URL || 'http://127.0.0.1:8000'; // Add to .env.example: PYTHON_SERVICE_URL=http://127.0.0.1:8000
 
 // Updated route to use your Python FastAPI service
 router.post('/parse-resume', resumeUpload.single('file'), async (req, res) => {
@@ -98,16 +98,19 @@ router.post('/parse-resume', resumeUpload.single('file'), async (req, res) => {
     });
 
   } catch (err) {
-    console.error('Error parsing resume:', err.response?.data || err.message);
-    
+    // Enhanced error logging
+    console.error('Error parsing resume:', err);
+    if (err && err.stack) {
+      console.error('Stack trace:', err.stack);
+    }
     // Clean up uploaded file even if there was an error
     if (req.file && fs.existsSync(req.file.path)) {
       fs.unlinkSync(req.file.path);
     }
-    
     res.status(500).json({ 
       error: 'Resume parsing failed', 
-      details: err.response?.data || err.message 
+      details: err.response?.data || err.message || err.toString(),
+      stack: err.stack || null
     });
   }
 });
@@ -149,8 +152,16 @@ router.post('/parse-resume-external', resumeUpload.single('file'), async (req, r
       rawData: parsedData
     });
   } catch (err) {
-    console.error('Error parsing resume:', err.response?.data || err.message);
-    res.status(500).json({ error: 'Resume parsing failed', details: err.message });
+    // Enhanced error logging
+    console.error('Error parsing resume (external):', err);
+    if (err && err.stack) {
+      console.error('Stack trace:', err.stack);
+    }
+    res.status(500).json({ 
+      error: 'Resume parsing failed', 
+      details: err.response?.data || err.message || err.toString(),
+      stack: err.stack || null
+    });
   }
 });
 

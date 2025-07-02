@@ -39,18 +39,28 @@ exports.register = async (req, res) => {
 // Login a user or recruiter
 exports.login = async (req, res) => {
   const { email, password, role } = req.body;
+  
+  console.log('Login attempt:', { email, role }); // Debug log
 
   try {
     const Model = role === "recruiter" ? Recruiter : User;
     const user = await Model.findOne({ email });
+    
+    console.log('User found:', user ? 'Yes' : 'No'); // Debug log
+    
     if (!user) return res.status(400).json({ msg: "Invalid credentials" });
 
     const match = await bcrypt.compare(password, user.password);
+    console.log('Password match:', match); // Debug log
+    
     if (!match) return res.status(400).json({ msg: "Invalid credentials" });
+
+    const token = generateToken(user);
+    console.log('Token generated successfully'); // Debug log
 
     res.json({
       msg: "Login successful",
-      token: generateToken(user),
+      token: token,
       user: {
         id: user._id,
         email: user.email,
@@ -59,6 +69,7 @@ exports.login = async (req, res) => {
       },
     });
   } catch (err) {
+    console.error('Login error:', err); // Debug log
     res.status(500).json({ msg: "Server error", error: err.message });
   }
 };

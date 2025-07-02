@@ -7,6 +7,7 @@ const cors = require("cors");
 const startPitchService = require('./startPitchService');
 const fs = require('fs');
 const path = require('path');
+const userRoutes = require('./routes/userRoutes');
 
 // Ensure uploads directory exists
 const uploadsDir = path.join(__dirname, 'uploads');
@@ -59,6 +60,12 @@ app.use('/api/resume', resumeParserRoutes);
 
 // Make uploads directory accessible
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// Serve videos statically
+app.use('/uploads/videos', express.static(path.join(__dirname, 'uploads/videos')));
+
+app.use('/api/user', userRoutes);
+
 app.use("/api/auth", require("./routes/authRoutes"));
 app.use("/api/user", require("./routes/userRoutes"));
 app.use("/api/recruiter", require("./routes/recruiterRoutes"));
@@ -68,4 +75,7 @@ app.use("/api/messages", require("./routes/messageRoutes"));
 app.use("/api/recommendations", require("./routes/recommendationRoutes"));
 const PORT = process.env.PORT || 5001;
 
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+const server = app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
+server.setTimeout(24 * 60 * 60 * 1000); // 24 hours

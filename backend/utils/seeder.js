@@ -10,6 +10,7 @@ const Application = require("../models/Application");
 const Pitch = require("../models/Pitch");
 const Avatar = require("../models/Avatar");
 const connectDB = require("../config/db");
+const IMAGEKIT_URL = process.env.IMAGEKIT_URL_ENDPOINT;
 
 // Sample data for users
 const users = [
@@ -20,7 +21,7 @@ const users = [
     fullName: "Amit Verma",
     phone: "+91 98765 43210",
     location: "Pune, Maharashtra, India",
-    avatar: "https://ik.imagekit.io/tpauozgxh/amit.png?updatedAt=1750491534480",
+    avatar: `${IMAGEKIT_URL}/tpauozgxh/amit.png?updatedAt=1750491534480`,
     linkedin: "linkedin.com/in/amitverma-autosys",
     github: "github.com/amitverma-dev",
     leetcode: "leetcode.com/amitverma",
@@ -72,7 +73,7 @@ const users = [
     profileBookmarks: 2,
     pitchViews: 6,
     pitch: "Hi, I'm Amit Verma. I hold a Bachelor's degree in Electronics and Communication Engineering from Pune University, completed in 2013. I've worked as a Systems Engineer in the automotive domain for 9 years, focusing on embedded testing, hardware-software integration, and validation protocols. My key skills include CANalyzer, Python scripting, and real-time systems. I'm ISTQB Foundation certified and now keen to contribute to a technology-driven organization where precision engineering and quality assurance are core values.",
-    video: "https://imagekit.io/player/embed/tpauozgxh/imagespeech-0-100_enhanced%20(1).mp4?updatedAt=1750483782541&thumbnail=https%3A%2F%2Fik.imagekit.io%2Ftpauozgxh%2Fimagespeech-0-100_enhanced%2520%281%29.mp4%2Fik-thumbnail.jpg%3FupdatedAt%3D1750483782541&updatedAt=1750483782541"
+    video: `${IMAGEKIT_URL}/player/embed/tpauozgxh/imagespeech-0-100_enhanced%20(1).mp4?updatedAt=1750483782541&thumbnail=https%3A%2F%2Fik.imagekit.io%2Ftpauozgxh%2Fimagespeech-0-100_enhanced%2520%281%29.mp4%2Fik-thumbnail.jpg%3FupdatedAt%3D1750483782541&updatedAt=1750483782541`
   },
   {
     email: "shanti.priya@example.com",
@@ -81,7 +82,7 @@ const users = [
     fullName: "Shanti Priya",
     phone: "+91 98111 22334",
     location: "New Delhi, India",
-    avatar: "https://ik.imagekit.io/tpauozgxh/Shanti.png?updatedAt=1750491471824",
+    avatar: `${IMAGEKIT_URL}/tpauozgxh/Shanti.png?updatedAt=1750491471824`,
     linkedin: "linkedin.com/in/shantipriya-qa",
     github: "github.com/shantipriya",
     leetcode: "leetcode.com/shantipriya",
@@ -133,7 +134,7 @@ const users = [
     profileBookmarks: 4,
     pitchViews: 5,
     pitch: "Hi, I'm Shanti Priya. I hold a Bachelor's degree in Computer Applications from Delhi University, completed in 2012. I've worked as a QA Analyst in the fintech sector for over 10 years, specializing in end-to-end functional testing, regression suites, and automation scripting. My key skills include Selenium, JIRA, API testing, Agile methodology, and defect lifecycle management. I'm ISTQB certified and now eager to contribute to an innovative organization that values precision, speed, and continuous improvement in software delivery.",
-    video: "https://imagekit.io/player/embed/tpauozgxh/imagespeech-0-100_full.mp4?updatedAt=1750483240176&thumbnail=https%3A%2F%2Fik.imagekit.io%2Ftpauozgxh%2Fimagespeech-0-100_full.mp4%2Fik-thumbnail.jpg%3FupdatedAt%3D1750483240176&updatedAt=1750483240176"
+    video: `${IMAGEKIT_URL}/player/embed/tpauozgxh/imagespeech-0-100_full.mp4?updatedAt=1750483240176&thumbnail=https%3A%2F%2Fik.imagekit.io%2Ftpauozgxh%2Fimagespeech-0-100_full.mp4%2Fik-thumbnail.jpg%3FupdatedAt%3D1750483240176&updatedAt=1750483240176`
   },
   {
     email: "kevin.lang@example.com",
@@ -142,7 +143,7 @@ const users = [
     fullName: "Kevin Lang",
     phone: "+1 (617) 555-2290",
     location: "Boston, MA",
-    avatar: "https://ik.imagekit.io/tpauozgxh/processed_face(1).png?updatedAt=1750491346187",
+    avatar: `${IMAGEKIT_URL}/tpauozgxh/processed_face(1).png?updatedAt=1750491346187`,
     linkedin: "linkedin.com/in/kevin-lang-syseng",
     github: "github.com/kevinlang-dev",
     leetcode: "leetcode.com/kevinlang",
@@ -194,7 +195,7 @@ const users = [
     profileBookmarks: 0,
     pitchViews: 2,
     pitch: "Hi, I'm Kevin Lang. I hold a Bachelor's degree in Electronics and Communication Engineering from Harvard University, completed in 2015. I've worked as a Systems Engineer in the system domain for 11 years, focusing on embedded testing, software integration, and validation protocols. My key skills include Shell scripting and Operating Systems. I'm ISTQB Foundation certified and now keen to contribute to a technology-driven organization.",
-    video: "https://imagekit.io/player/embed/tpauozgxh/imagespeech-0-100_enhanced%20(3).mp4?updatedAt=1750489508088&thumbnail=https%3A%2F%2Fik.imagekit.io%2Ftpauozgxh%2Fimagespeech-0-100_enhanced%2520%283%29.mp4%2Fik-thumbnail.jpg%3FupdatedAt%3D1750489508088&updatedAt=1750489508088"
+    video: `${IMAGEKIT_URL}/player/embed/tpauozgxh/imagespeech-0-100_enhanced%20(3).mp4?updatedAt=1750489508088&thumbnail=https%3A%2F%2Fik.imagekit.io%2Ftpauozgxh%2Fimagespeech-0-100_enhanced%2520%283%29.mp4%2Fik-thumbnail.jpg%3FupdatedAt%3D1750489508088&updatedAt=1750489508088`
   },
   {
     email: "linda.harris@example.com",
@@ -203,7 +204,7 @@ const users = [
     fullName: "Linda Harris",
     phone: "+44 7700 900456",
     location: "Birmingham, UK",
-    avatar: "https://ik.imagekit.io/tpauozgxh/processed_face.png?updatedAt=1750490979817",
+    avatar: `${IMAGEKIT_URL}/tpauozgxh/processed_face.png?updatedAt=1750490979817`,
     linkedin: "linkedin.com/in/lindaharris-qe",
     github: "github.com/lindaharris",
     leetcode: "leetcode.com/lindaharris",
@@ -255,7 +256,7 @@ const users = [
     profileBookmarks: 4,
     pitchViews: 8,
     pitch: "Hi, I'm Linda Harris. I hold a Bachelor's degree in Software Engineering from Nuneaton University, completed in 2008. I've worked as a Test Engineer at an IT & Telecoms company for 16 years, handling the entire test process—from planning to execution and reporting. My key skills include acceptance testing, exploratory testing, technical investigation, Agile, and test environments. I'm ISEB certified and now looking to bring my expertise in software quality and testing to a forward-thinking organization.",
-    video: "https://imagekit.io/player/embed/tpauozgxh/imagespeech-0-100_enhanced%20(2).mp4?updatedAt=1750485214841&thumbnail=https%3A%2F%2Fik.imagekit.io%2Ftpauozgxh%2Fimagespeech-0-100_enhanced%2520%282%29.mp4%2Fik-thumbnail.jpg%3FupdatedAt%3D1750485214841&updatedAt=1750485214841"
+    video: `${IMAGEKIT_URL}/player/embed/tpauozgxh/imagespeech-0-100_enhanced%20(2).mp4?updatedAt=1750485214841&thumbnail=https%3A%2F%2Fik.imagekit.io%2Ftpauozgxh%2Fimagespeech-0-100_enhanced%2520%282%29.mp4%2Fik-thumbnail.jpg%3FupdatedAt%3D1750485214841&updatedAt=1750485214841`
   }
 ];
 
@@ -263,7 +264,7 @@ const users = [
 const recruiters = [
   {
     email: "priya.sharma@elephantventures.com",
-    password: "password123",
+    password: process.env.SEEDER_USER_PASSWORD,
     role: "recruiter",
     fullName: "Priya Sharma",
     phone: "+91 98765 12345",
@@ -280,7 +281,7 @@ const recruiters = [
   },
   {
     email: "rajesh.kumar@techinnovators.com",
-    password: "password123",
+    password: process.env.SEEDER_USER_PASSWORD,
     role: "recruiter",
     fullName: "Rajesh Kumar",
     phone: "+91 99887 65432",
@@ -297,7 +298,7 @@ const recruiters = [
   },
   {
     email: "anita.patel@hireVue.com",
-    password: "password123",
+    password: process.env.SEEDER_USER_PASSWORD,
     role: "recruiter",
     fullName: "Anita Patel",
     phone: "+91 97654 32109",
@@ -314,7 +315,7 @@ const recruiters = [
   },
   {
     email: "vikram.singh@cohere.com",
-    password: "password123",
+    password: process.env.SEEDER_USER_PASSWORD,
     role: "recruiter",
     fullName: "Vikram Singh",
     phone: "+91 98123 45678",
@@ -331,7 +332,7 @@ const recruiters = [
   },
   {
     email: "meera.reddy@cred.com",
-    password: "password123",
+    password: process.env.SEEDER_USER_PASSWORD,
     role: "recruiter",
     fullName: "Meera Reddy",
     phone: "+91 94567 89012",

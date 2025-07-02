@@ -263,14 +263,6 @@ const EngagementTools = () => {
                         <Badge className={getStatusColor(candidate.status)}>
                           {getStatusText(candidate.status)}
                         </Badge>
-                        <div className="flex gap-1">
-                          <Button size="sm" variant="outline" className="border-violet-200 text-violet-600">
-                            <MessageSquare className="w-4 h-4" />
-                          </Button>
-                          <Button size="sm" variant="outline" className="border-violet-200 text-violet-600">
-                            <Calendar className="w-4 h-4" />
-                          </Button>
-                        </div>
                       </div>
                     </div>
                   ))}

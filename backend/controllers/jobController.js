@@ -282,3 +282,11 @@ exports.getUserApplications = async (req, res) => {
     res.status(500).json({ message: "Error fetching user applications", error: err.message });
   }
 };
+
+// Update application notes (recruiter only)
+exports.updateApplicationNotes = async (req, res) => {
+  // TODO: Implement logic to update application notes
+  res.status(501).json({ message: "Not implemented: updateApplicationNotes" });
+};
+
+console.log('jobController.js exports:', Object.keys(module.exports));

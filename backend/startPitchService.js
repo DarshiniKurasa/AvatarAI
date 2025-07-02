@@ -2,11 +2,11 @@ const { spawn } = require('child_process');
 const path = require('path');
 
 const startPitchService = () => {
-  const pitchServicePath = path.join(__dirname, '..', 'models', 'Elevator Pitch');
+  const pitchServicePath = path.join(__dirname, 'ml-models', 'Elevator Pitch');
   
   console.log('Starting Elevator Pitch service...');
   
-  const pythonProcess = spawn('python', ['main.py'], {
+  const pythonProcess = spawn(process.env.PYTHON_PATH || 'python', ['main.py'], {
     cwd: pitchServicePath,
     stdio: 'inherit'
   });

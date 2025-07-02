@@ -47,22 +47,7 @@ router.post("/bookmark", bookmarkCandidate);
 router.get("/bookmarked", getBookmarkedCandidates);
 
 // Configure multer storage for avatar uploads
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    const uploadDir = path.join(__dirname, "../uploads/avatars");
-    // Create directory if it doesn't exist
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const ext = path.extname(file.originalname);
-    cb(null, 'avatar-' + uniqueSuffix + ext);
-  }
-});
-
+const storage = multer.memoryStorage();
 const avatarUpload = multer({ storage: storage });
 
 // Add this route before the module.exports line

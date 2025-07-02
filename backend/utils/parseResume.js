@@ -5,7 +5,7 @@ async function parseResume(docUrl) {
     const endpoint = `https://api.apilayer.com/resume_parser/url?url=${encodeURIComponent(docUrl)}`; // Removed semicolon
     const response = await axios.get(endpoint, {
       headers: {
-        apikey: 'ES4RiFmezFQ30w6fFhaRNxY9GmPx9hLb'
+        apikey: process.env.APILAYER_API_KEY
       },
       timeout: 30000 // 30 second timeout
     });

@@ -1,0 +1,31 @@
+# Ignore Python cache and virtual environments
+__pycache__/
+*.pyc
+venv/
+avatar_env/
+Avatar/avatar_env/
+
+# Ignore model files and large data
+*.pt
+*.pth
+*.h5
+*.ckpt
+*.npz
+*.npy
+*.onnx
+*.tar
+*.zip
+
+# Ignore large folders (adjust as needed)
+Avatar/models/
+Avatar/gfpgan/
+Avatar/weights/
+Avatar/large_model_files/
+Avatar/examples/driven_audio/
+Avatar/examples/ref_video/
+Avatar/examples/source_image/
+
+# Ignore large model files in Avatar/checkpoints
+Avatar/checkpoints/*
+!Avatar/checkpoints/*.url
+!Avatar/checkpoints/README.md

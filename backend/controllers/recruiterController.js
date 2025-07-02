@@ -4,6 +4,13 @@ const Job = require("../models/Job");
 const Avatar = require("../models/Avatar");
 const Message = require("../models/Message");
 const mixpanel = require("../mixpanel");
+const ImageKit = require("imagekit");
+
+const imagekit = new ImageKit({
+  publicKey: process.env.IMAGEKIT_PUBLIC_KEY,
+  privateKey: process.env.IMAGEKIT_PRIVATE_KEY,
+  urlEndpoint: process.env.IMAGEKIT_URL_ENDPOINT
+});
 
 // Profile Management
 exports.getProfile = async (req, res) => {
@@ -125,9 +132,13 @@ exports.uploadAvatar = async (req, res) => {
       return res.status(400).json({ error: "No file uploaded" });
     }
 
-    // Create the URL for the uploaded file
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
-    const avatarUrl = `${baseUrl}/uploads/avatars/${req.file.filename}`;
+    // Upload to ImageKit
+    const uploadResponse = await imagekit.upload({
+      file: req.file.buffer, // multer memory storage
+      fileName: req.file.originalname,
+    });
+
+    const avatarUrl = uploadResponse.url;
 
     // Update the recruiter's avatar field in the database
     const recruiter = await Recruiter.findByIdAndUpdate(
@@ -674,61 +685,67 @@ exports.getAnalytics = async (req, res) => {
 exports.bookmarkCandidate = async (req, res) => {
   try {
     const { candidateId, action } = req.body;
-    
+    console.log("Bookmark request by recruiter:", req.user.id, "for candidate:", candidateId, "action:", action);
+
     if (!candidateId) {
       return res.status(400).json({ msg: "Candidate ID is required" });
     }
-    
+
     const recruiter = await Recruiter.findById(req.user.id);
-    
+
     if (!recruiter) {
+      console.log("Recruiter not found for id:", req.user.id);
       return res.status(404).json({ msg: "Recruiter not found" });
     }
-    
+
     // Initialize bookmarkedCandidates if it doesn't exist
     if (!recruiter.bookmarkedCandidates) {
       recruiter.bookmarkedCandidates = [];
     }
-    
+
     // Handle add/remove based on action parameter
     if (action === "remove") {
-      // Remove candidate from bookmarks
       recruiter.bookmarkedCandidates = recruiter.bookmarkedCandidates.filter(
         id => id.toString() !== candidateId
       );
       await recruiter.save();
+      console.log("Removed bookmark. New bookmarks:", recruiter.bookmarkedCandidates);
       res.json({ msg: "Candidate removed from bookmarks", success: true });
     } else {
-      // Default action is to add bookmark if not already present
       const alreadyBookmarked = recruiter.bookmarkedCandidates.some(
         id => id.toString() === candidateId
       );
-      
       if (!alreadyBookmarked) {
         recruiter.bookmarkedCandidates.push(candidateId);
         await recruiter.save();
+        console.log("Added bookmark. New bookmarks:", recruiter.bookmarkedCandidates);
       }
       res.json({ msg: "Candidate bookmarked successfully", success: true });
     }
   } catch (err) {
     console.error("Bookmark error:", err);
-    res.status(500).json({ msg: "Server error", error: err.message, success: false });
+    if (err && err.stack) {
+      console.error("Stack trace:", err.stack);
+    }
+    res.status(500).json({ msg: "Server error", error: err.message, stack: err.stack, success: false });
   }
 };
 
 exports.getBookmarkedCandidates = async (req, res) => {
   try {
+    console.log("Fetching bookmarks for recruiter:", req.user.id);
     const recruiter = await Recruiter.findById(req.user.id).populate('bookmarkedCandidates', '-password');
-    
     if (!recruiter) {
       return res.status(404).json({ msg: "Recruiter not found" });
     }
-    
-    // Return the populated bookmarked candidates
+    console.log("Bookmarked candidates returned:", recruiter.bookmarkedCandidates);
     res.json(recruiter.bookmarkedCandidates || []);
   } catch (err) {
     console.error("Error fetching bookmarked candidates:", err);
-    res.status(500).json({ msg: "Server error", error: err.message });
+    if (err && err.stack) {
+      console.error("Stack trace:", err.stack);
+    }
+    res.status(500).json({ msg: "Server error", error: err.message, stack: err.stack });
   }
 };
 

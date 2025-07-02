@@ -1,5 +1,9 @@
 const express = require("express");
 const router = express.Router();
+const jobController = require("../controllers/jobController");
+const authMiddleware = require("../middleware/authMiddleware");
+const roleMiddleware = require("../middleware/roleMiddleware");
+
 const {
   createJob,
   getAllJobs,
@@ -10,10 +14,14 @@ const {
   applyForJob,
   getJobApplications,
   updateApplicationStatus,
-  getUserApplications
-} = require("../controllers/jobController");
-const authMiddleware = require("../middleware/authMiddleware");
-const roleMiddleware = require("../middleware/roleMiddleware");
+  getUserApplications,
+  updateApplicationNotes
+} = jobController;
+
+if (typeof updateJob !== 'function') {
+  console.error('ERROR: updateJob is undefined in jobController!');
+  console.error('jobController exports:', Object.keys(jobController));
+}
 
 // Public routes
 router.get("/", getAllJobs);
@@ -33,5 +41,6 @@ router.put("/:id", roleMiddleware("recruiter"), updateJob);
 router.delete("/:id", roleMiddleware("recruiter"), deleteJob);
 router.get("/applications/:id", roleMiddleware("recruiter"), getJobApplications);
 router.put("/applications/:applicationId", roleMiddleware("recruiter"), updateApplicationStatus);
+router.put("/applications/:applicationId/notes", roleMiddleware("recruiter"), updateApplicationNotes);
 
 module.exports = router;

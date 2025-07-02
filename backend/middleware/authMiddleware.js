@@ -6,6 +6,7 @@ const authMiddleware = (req, res, next) => {
 
   // Check if no token
   if (!token) {
+    console.log('No token found in request'); // Debug log
     return res.status(401).json({ msg: "No token, authorization denied" });
   }
 
@@ -15,6 +16,7 @@ const authMiddleware = (req, res, next) => {
     req.user = decoded;
     next();
   } catch (err) {
+    console.log('Token verification failed:', err.message); // Debug log
     res.status(401).json({ msg: "Token is not valid" });
   }
 };

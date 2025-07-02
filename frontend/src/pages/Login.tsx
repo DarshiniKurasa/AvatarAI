@@ -29,6 +29,16 @@ const Login = () => {
     e.preventDefault();
     setErrorMessage(""); // Clear previous error messages
 
+    // Validate fields before sending
+    if (!formData.email || !formData.password || !role) {
+      setErrorMessage("Please enter email, password, and select a role.");
+      return;
+    }
+    if (role !== "user" && role !== "recruiter") {
+      setErrorMessage("Invalid role selected.");
+      return;
+    }
+
     try {
       const res = await axios.post("http://localhost:5000/api/auth/login", {
         email: formData.email,
@@ -48,7 +58,11 @@ const Login = () => {
         role === "recruiter" ? "/recruiter-dashboard" : "/user-dashboard";
     } catch (err: Error | unknown) {
       if (err instanceof Error && axios.isAxiosError(err) && err.response) {
-        setErrorMessage(err.response.data?.msg || "Invalid credentials");
+        if (err.response.status === 400 || err.response.status === 401) {
+          setErrorMessage(err.response.data?.msg || "Invalid credentials");
+        } else {
+          setErrorMessage("Server error. Please try again later.");
+        }
       } else {
         setErrorMessage("Invalid credentials");
       }

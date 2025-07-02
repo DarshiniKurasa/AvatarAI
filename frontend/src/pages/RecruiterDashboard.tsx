@@ -176,6 +176,13 @@ const RecruiterDashboard = () => {
     }
   };
 
+  const handleResumeFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      console.log("Selected resume file:", file.name);
+    }
+  };
+
   // Navigation handlers
   const handleOverviewModeSelect = (mode: string) => {
     const sectionMap = {
@@ -223,26 +230,6 @@ const RecruiterDashboard = () => {
             </h3>
           </div>
           
-          {/* Resume Upload */}
-          <div>
-            <Label className="text-sm font-medium text-gray-700 mb-2 block">Resume Upload</Label>
-            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition-colors">
-              <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-              <p className="text-sm text-gray-600 mb-2">Upload your resume to auto-fill profile</p>
-              <Button variant="outline" size="sm" onClick={handleResumeUpload}>
-                Upload Resume
-              </Button>
-              <p className="text-xs text-gray-500 mt-2">PDF, DOC up to 5MB</p>
-            </div>
-            <input
-              ref={resumeFileRef}
-              type="file"
-              accept=".pdf,.doc,.docx"
-              onChange={handleResumeFileChange}
-              className="hidden"
-            />
-          </div>
-
           {/* Basic Information */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -519,41 +506,6 @@ const RecruiterDashboard = () => {
   const renderJobsSection = () => (
     <div className="space-y-6">
       <JobsSection />
-      
-      {/* Job Applicants Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Job Applicants Management</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="flex items-center justify-between p-4 border rounded-lg">
-                <div>
-                  <h4 className="font-semibold">Candidate {i}</h4>
-                  <p className="text-sm text-gray-600">Applied for Senior Developer Position</p>
-                </div>
-                <div className="flex gap-2">
-                  <Button 
-                    size="sm" 
-                    variant="outline"
-                    onClick={() => handleViewApplicantProfile({ id: i, name: `Candidate ${i}` })}
-                  >
-                    View Profile
-                  </Button>
-                  <Button 
-                    size="sm" 
-                    className="bg-green-600 hover:bg-green-700"
-                    onClick={() => handleInterviewApplicant({ id: i, name: `Candidate ${i}`, email: `candidate${i}@email.com`, phone: `+1 555-000-000${i}` })}
-                  >
-                    Interview
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 

@@ -26,9 +26,36 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import UserSidebar from "@/components/UserSidebar";
 import VoiceRecorder from "@/components/VoiceRecorder";
 import { Edit, Video, Play } from 'lucide-react';
+
+interface EducationEntry {
+  institution: string;
+  degree: string;
+  year: string;
+  gpa?: string;
+}
+
+interface ExperienceEntry {
+  company: string;
+  position: string;
+  duration: string;
+  description: string;
+}
+
+interface ProjectEntry {
+  name: string;
+  tech: string;
+  description: string;
+}
 
 interface UserData {
   _id?: string;
@@ -43,8 +70,10 @@ interface UserData {
   skills?: string;
   availability?: string;
   avatar?: string;
-  education?: any;
-  experience?: any;
+  education?: EducationEntry[];
+  experience?: ExperienceEntry[];
+  projects?: ProjectEntry[];
+  videoUrl?: string;
 }
 
 interface SaveMessage {
@@ -53,7 +82,11 @@ interface SaveMessage {
 }
 
 const UserDashboard: React.FC = () => {
-  const [userData, setUserData] = useState<UserData>({});
+  const [userData, setUserData] = useState<UserData>({
+    education: [],
+    experience: [],
+    projects: [],
+  });
   const [activeSection, setActiveSection] = useState("profile");
   const [saveMessage, setSaveMessage] = useState<SaveMessage>({ type: "", text: "" });
   const [pitchText, setPitchText] = useState("Welcome to my profile! I'm a passionate professional with expertise in various technologies and a strong commitment to delivering exceptional results. With my diverse skill set and experience, I'm ready to contribute to your team's success and take on new challenges that drive innovation and growth.");
@@ -63,6 +96,12 @@ const UserDashboard: React.FC = () => {
   const [sentMessages, setSentMessages] = useState([]);
   const [receivedMessages, setReceivedMessages] = useState([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
+  const [gender, setGender] = useState<string>("male");
+  const [nationality, setNationality] = useState<string>("");
+  const [videoProgress, setVideoProgress] = useState<string>("");
+  const [videoJobId, setVideoJobId] = useState<string>("");
+  const [resumeStatus, setResumeStatus] = useState<string>("");
+  const [uploadedResume, setUploadedResume] = useState<string>("");
   
   const resumeFileRef = useRef<HTMLInputElement>(null);
   const avatarFileRef = useRef<HTMLInputElement>(null);
@@ -80,26 +119,17 @@ const UserDashboard: React.FC = () => {
         console.log("Fetched user data:", res.data);
         setUserData(res.data);
         
-        // Fetch the user's pitch
-        const pitchRes = await axios.get("http://localhost:5000/api/user/pitch", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-        
-        if (pitchRes.data) {
-          setPitchText(pitchRes.data.content);
-          if (pitchRes.data.videoUrl) {
-            setHasGeneratedVideo(true);
-            // Update userData with the video URL from the pitch
-            setUserData(prevData => ({
-              ...prevData,
-              videoUrl: pitchRes.data.videoUrl
-            }));
-          }
+        if (res.data.pitch) {
+          setPitchText(res.data.pitch);
         }
-      } catch (err) {
-        console.error(err);
+        
+        // Set video URL if available
+        if (res.data.videoUrl) {
+          setHasGeneratedVideo(true);
+        }
+        
+      } catch (error) {
+        console.error("Error fetching user data:", error);
       }
     };
   
@@ -109,42 +139,66 @@ const UserDashboard: React.FC = () => {
   const handleResumeUpload = () => resumeFileRef.current?.click();
   const handleAvatarUpload = () => avatarFileRef.current?.click();
 
-  // Update the handleResumeFileChange function with proper error handling
-  const handleResumeFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-  const file = e.target.files?.[0];
-  if (!file) return;
-  
-  // Show loading state
-  setSaveMessage({ type: "info", text: "Uploading and parsing resume..." });
-  
-  const formData = new FormData();
-  formData.append("file", file);
-  
-  // Upload and parse the resume
-  axios.post("http://localhost:5000/api/parse-resume", formData, {
-    headers: {
-      "Content-Type": "multipart/form-data",
-      Authorization: `Bearer ${localStorage.getItem("token")}`
+  const handleResumeFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setSaveMessage({ type: "info", text: "Uploading and parsing resume..." });
+    setResumeStatus("");
+    setUploadedResume("");
+    const formData = new FormData();
+    formData.append("file", file);
+    try {
+      // 1. Parse resume for elevator pitch and profile fields
+      const response = await axios.post("http://localhost:5000/api/parse-resume", formData, {
+        headers: { "Content-Type": "multipart/form-data" }
+      });
+      processResumeResponse(response.data, file.name, response.data.resumePath);
+      // 2. Upload resume to user db and ImageKit for universal path
+      const token = localStorage.getItem("token");
+      const saveRes = await axios.post("http://localhost:5000/api/user/resume", formData, {
+        headers: { "Content-Type": "multipart/form-data", Authorization: `Bearer ${token}` }
+      });
+      
+    } catch (err: unknown) {
+      // Fallback to external API for parsing only
+      try {
+        const response = await axios.post("http://localhost:5000/api/parse-resume-external", formData, {
+          headers: { "Content-Type": "multipart/form-data" }
+        });
+        processResumeResponse(response.data, file.name, response.data.resumePath);
+        // Still try to save resume to user db
+        const token = localStorage.getItem("token");
+        const saveRes = await axios.post("http://localhost:5000/api/user/resume", formData, {
+          headers: { "Content-Type": "multipart/form-data", Authorization: `Bearer ${token}` }
+        });
+      } catch (err2: unknown) {
+        let errorMessage = "Failed to parse resume. Please try again.";
+        if (
+          typeof err2 === 'object' && err2 !== null &&
+          'response' in err2 &&
+          (err2 as any).response?.data?.error
+        ) {
+          errorMessage = (err2 as any).response.data.error;
+        }
+        setSaveMessage({ type: "error", text: errorMessage });
+        setResumeStatus("");
+        setUploadedResume("");
+      }
     }
-  })
-  // Inside handleResumeFileChange function
-  .then(response => {
-    console.log("Resume parsed:", response.data);
-    
-    // Extract profile data from the response
-    const profileData = response.data.data?.attributes?.result || {};
-    const parsedData = response.data.data || {};
-    
+  };
+
+  const processResumeResponse = (data: any, fileName?: string, resumePath?: string) => {
+    const profileData = data.data?.attributes?.result || {};
+    const parsedData = data.data || {};
     // Extract skills and format as string
-    const skillsData = response.data.skills || profileData.skills || [];
+    const skillsData = data.skills || profileData.skills || [];
     const skillsString = Array.isArray(skillsData) 
       ? skillsData.join(", ") 
       : typeof skillsData === 'string' 
         ? skillsData 
         : "";
-    
     // Extract professional profiles from text content
-    const extractProfileUrl = (text, platform) => {
+    const extractProfileUrl = (text: string, platform: string) => {
       if (!text) return "";
       const regex = {
         linkedin: /linkedin\.com\/in\/([\w-]+)/i,
@@ -152,26 +206,24 @@ const UserDashboard: React.FC = () => {
         leetcode: /leetcode\.com\/([\w-]+)/i,
         portfolio: /(https?:\/\/[\w.-]+\.[\w.-]+\/?[\w\/-]*)/i
       };
-      
       const match = text.match(regex[platform]);
       return match ? match[0] : "";
     };
-    
     // Get text content if available
     const textContent = parsedData.text_content || "";
     
     // Create updated user data object
     const updatedUserData = {
-      fullName: profileData.candidate_name || response.data.profileData?.name || "",
-      email: profileData.candidate_email || response.data.profileData?.email || "",
-      phone: profileData.candidate_phone || response.data.profileData?.phone || "",
-      location: profileData.candidate_location || response.data.profileData?.location || "",
+      fullName: profileData.candidate_name || parsedData.profileData?.name || "",
+      email: profileData.candidate_email || parsedData.profileData?.email || "",
+      phone: profileData.candidate_phone || parsedData.profileData?.phone || "",
+      location: profileData.candidate_location || parsedData.profileData?.location || "",
       linkedin: profileData.linkedin || extractProfileUrl(textContent, "linkedin") || "",
       github: profileData.github || extractProfileUrl(textContent, "github") || "",
       leetcode: profileData.leetcode || extractProfileUrl(textContent, "leetcode") || "",
       portfolio: profileData.portfolio || extractProfileUrl(textContent, "portfolio") || "",
-      education: response.data.education || profileData.education_qualifications || [],
-      experience: response.data.experience || profileData.positions || [],
+      education: parsedData.education || profileData.education_qualifications || [],
+      experience: parsedData.experience || profileData.positions || [],
       skills: skillsString || ""
     };
     
@@ -180,16 +232,16 @@ const UserDashboard: React.FC = () => {
       // Create merged data that preserves existing data when parsed data is empty
       const mergedData = {
         ...prev,
-        fullName: profileData.candidate_name || response.data.profileData?.name || prev.fullName || "",
-        email: profileData.candidate_email || response.data.profileData?.email || prev.email || "",
-        phone: profileData.candidate_phone || response.data.profileData?.phone || prev.phone || "",
-        location: profileData.candidate_location || response.data.profileData?.location || prev.location || "",
+        fullName: profileData.candidate_name || parsedData.profileData?.name || prev.fullName || "",
+        email: profileData.candidate_email || parsedData.profileData?.email || prev.email || "",
+        phone: profileData.candidate_phone || parsedData.profileData?.phone || prev.phone || "",
+        location: profileData.candidate_location || parsedData.profileData?.location || prev.location || "",
         linkedin: profileData.linkedin || extractProfileUrl(textContent, "linkedin") || prev.linkedin || "",
         github: profileData.github || extractProfileUrl(textContent, "github") || prev.github || "",
         leetcode: profileData.leetcode || extractProfileUrl(textContent, "leetcode") || prev.leetcode || "",
         portfolio: profileData.portfolio || extractProfileUrl(textContent, "portfolio") || prev.portfolio || "",
-        education: response.data.education || profileData.education_qualifications || prev.education || [],
-        experience: response.data.experience || profileData.positions || prev.experience || [],
+        education: parsedData.education || profileData.education_qualifications || prev.education || [],
+        experience: parsedData.experience || profileData.positions || prev.experience || [],
         skills: skillsString || prev.skills || ""
       };
       
@@ -210,16 +262,16 @@ const UserDashboard: React.FC = () => {
       
       // Create merged data that preserves existing data when parsed data is empty
       const mergedData = {
-        fullName: profileData.candidate_name || response.data.profileData?.name || currentData.fullName || "",
-        email: profileData.candidate_email || response.data.profileData?.email || currentData.email || "",
-        phone: profileData.candidate_phone || response.data.profileData?.phone || currentData.phone || "",
-        location: profileData.candidate_location || response.data.profileData?.location || currentData.location || "",
+        fullName: profileData.candidate_name || parsedData.profileData?.name || currentData.fullName || "",
+        email: profileData.candidate_email || parsedData.profileData?.email || currentData.email || "",
+        phone: profileData.candidate_phone || parsedData.profileData?.phone || currentData.phone || "",
+        location: profileData.candidate_location || parsedData.profileData?.location || currentData.location || "",
         linkedin: profileData.linkedin || extractProfileUrl(textContent, "linkedin") || currentData.linkedin || "",
         github: profileData.github || extractProfileUrl(textContent, "github") || currentData.github || "",
         leetcode: profileData.leetcode || extractProfileUrl(textContent, "leetcode") || currentData.leetcode || "",
         portfolio: profileData.portfolio || extractProfileUrl(textContent, "portfolio") || currentData.portfolio || "",
-        education: response.data.education || profileData.education_qualifications || currentData.education || [],
-        experience: response.data.experience || profileData.positions || currentData.experience || [],
+        education: parsedData.education || profileData.education_qualifications || currentData.education || [],
+        experience: parsedData.experience || profileData.positions || currentData.experience || [],
         skills: skillsString || currentData.skills || ""
       };
       
@@ -242,16 +294,52 @@ const UserDashboard: React.FC = () => {
     });
     
     // Generate a pitch based on the parsed resume data
-    if (response.data.data && response.data.data.pitch) {
+    if (data.data && data.data.pitch) {
       // If the Python service already generated a pitch, use it
-      setPitchText(response.data.data.pitch);
-    } else if (response.data.pitch) {
+      const generatedPitch = data.data.pitch;
+      setPitchText(generatedPitch);
+      
+      // Automatically save the pitch to the database
+      const token = localStorage.getItem("token");
+      axios.post("http://localhost:5000/api/user/pitch", 
+        { content: generatedPitch },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      )
+      .then(saveResponse => {
+        console.log("Pitch automatically saved:", saveResponse.data);
+      })
+      .catch(saveError => {
+        console.error("Error auto-saving pitch:", saveError);
+      });
+    } else if (data.pitch) {
       // If pitch is directly in the response
-      setPitchText(response.data.pitch);
+      const generatedPitch = data.pitch;
+      setPitchText(generatedPitch);
+      
+      // Automatically save the pitch to the database
+      const token = localStorage.getItem("token");
+      axios.post("http://localhost:5000/api/user/pitch", 
+        { content: generatedPitch },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      )
+      .then(saveResponse => {
+        console.log("Pitch automatically saved:", saveResponse.data);
+      })
+      .catch(saveError => {
+        console.error("Error auto-saving pitch:", saveError);
+      });
     } else {
       // Otherwise, call the pitch generation endpoint
       axios.post("http://localhost:8000/generate-pitch", {
-        data: response.data.data || response.data
+        resume_text: (data.data?.text_content || data.text_content || "")
       })
       // Inside handleResumeFileChange function, after pitch generation
       .then(pitchResponse => {
@@ -290,27 +378,8 @@ const UserDashboard: React.FC = () => {
     
     // Switch to profile section to show the updated profile
     setActiveSection("profile");
-  })
-  .catch(error => {
-    console.error("Error parsing resume:", error);
-    
-    // Extract the most useful error message
-    let errorMessage = "Failed to parse resume. Please try again.";
-    
-    if (error.response?.data?.error?.message) {
-      errorMessage = error.response.data.error.message;
-    } else if (error.response?.data?.message) {
-      errorMessage = error.response.data.message;
-    } else if (error.message) {
-      errorMessage = error.message;
-    }
-    
-    setSaveMessage({ 
-      type: "error", 
-      text: errorMessage
-    });
-  });
-};
+    setTimeout(() => setActiveSection('pitch'), 1000); // Redirect to pitch section after 1s
+  };
 
   // Update the handleAvatarFileChange function
   const handleAvatarFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -370,7 +439,7 @@ const UserDashboard: React.FC = () => {
     const token = localStorage.getItem("token");
     
     axios.post("http://localhost:5000/api/user/pitch", 
-      { pitch: pitchText },
+      { content: pitchText },
       {
         headers: {
           Authorization: `Bearer ${token}`
@@ -393,50 +462,122 @@ const UserDashboard: React.FC = () => {
     });
   };
 
-  const handleGenerateVideo = () => {
+  const handleGenerateVideo = async () => {
+    // Check if user has an avatar
+    if (!userData.avatar) {
+      setSaveMessage({
+        type: "error",
+        text: "Please upload an avatar image first."
+      });
+      return;
+    }
     setIsGeneratingVideo(true);
+    setSaveMessage({ type: "info", text: "Generating video..." });
+    setVideoProgress("");
     const token = localStorage.getItem("token");
-    
-    // Call the backend to generate a video from the pitch text
-    axios.post("http://localhost:5000/api/generate-video", 
-      { pitch: pitchText },
-      {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      }
-    )
-    .then(response => {
-      setIsGeneratingVideo(false);
-      setHasGeneratedVideo(true);
-      
-      // Save the video URL to the pitch
-      return axios.put("http://localhost:5000/api/user/pitch", 
-        { 
+    try {
+      // Step 1: Start the video generation job
+      const startRes = await axios.post(
+        "http://localhost:5000/api/user/avatar/generate-video",
+        {
+          avatarUrl: userData.avatar,
           pitch: pitchText,
-          videoUrl: response.data.videoUrl 
+          gender: gender,
+          nationality: nationality
         },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json"
+          }
+        }
+      );
+      const jobId = startRes.data.jobId;
+      setVideoJobId(jobId); // Store jobId for stopping
+      // Step 2: Poll for job status
+      const pollStatus = async () => {
+        try {
+          const statusRes = await axios.get(
+            `http://localhost:5000/api/user/avatar/generate-video/status/${jobId}`,
+            {
+              headers: {
+                Authorization: `Bearer ${token}`
+              }
+            }
+          );
+          // Show progress if available
+          if (statusRes.data.progress) {
+            setVideoProgress(statusRes.data.progress);
+          }
+          if (statusRes.data.status === "success" && statusRes.data.videoUrl) {
+            setIsGeneratingVideo(false);
+            setHasGeneratedVideo(true);
+            setUserData(prevData => ({
+              ...prevData,
+              videoUrl: statusRes.data.videoUrl
+            }));
+            setSaveMessage({
+              type: "success",
+              text: "Video generated and saved successfully!"
+            });
+            setVideoProgress(""); // Clear progress
+            setVideoJobId(""); // Clear jobId
+          } else if (statusRes.data.status === "error") {
+            setIsGeneratingVideo(false);
+            setSaveMessage({
+              type: "error",
+              text: statusRes.data.error || "Failed to generate video. Please try again."
+            });
+            setVideoProgress(""); // Clear progress
+            setVideoJobId(""); // Clear jobId
+          } else {
+            // Still processing, poll again after a delay
+            setTimeout(pollStatus, 3000);
+          }
+        } catch (err) {
+          setIsGeneratingVideo(false);
+          setSaveMessage({
+            type: "error",
+            text: "Failed to check video generation status."
+          });
+          setVideoProgress(""); // Clear progress
+          setVideoJobId(""); // Clear jobId
+        }
+      };
+      pollStatus();
+    } catch (error) {
+      setIsGeneratingVideo(false);
+      setSaveMessage({
+        type: "error",
+        text: error.response?.data?.message || "Failed to start video generation."
+      });
+      setVideoProgress("");
+      setVideoJobId("");
+    }
+  };
+
+  // Add a function to stop the video generation job
+  const handleStopVideoJob = async () => {
+    if (!videoJobId) return;
+    setSaveMessage({ type: "info", text: "Stopping video generation..." });
+    const token = localStorage.getItem("token");
+    try {
+      await axios.post(
+        `http://localhost:5000/api/user/avatar/generate-video/stop/${videoJobId}`,
+        {},
         {
           headers: {
             Authorization: `Bearer ${token}`
           }
         }
       );
-    })
-    .then(response => {
-      setSaveMessage({ 
-        type: "success", 
-        text: "Video generated and saved successfully!" 
-      });
-    })
-    .catch(error => {
-      console.error("Error generating video:", error);
       setIsGeneratingVideo(false);
-      setSaveMessage({ 
-        type: "error", 
-        text: "Failed to generate video. Please try again." 
-      });
-    });
+      setVideoProgress("");
+      setVideoJobId("");
+      setSaveMessage({ type: "success", text: "Video generation stopped." });
+    } catch (err) {
+      setSaveMessage({ type: "error", text: "Failed to stop video generation." });
+    }
   };
 
   const saveProfile = async () => {
@@ -498,7 +639,7 @@ const UserDashboard: React.FC = () => {
             <div className="border-2 border-dashed border-blue-300 rounded-xl p-8 text-center bg-gradient-to-br from-blue-50 to-indigo-50">
               <Upload className="w-10 h-10 text-blue-500 mx-auto mb-3" />
               <p className="text-sm text-gray-700 mb-3 font-medium">
-                Upload your resume to auto-fill profile
+                Upload your resume to Generate Pitch.
               </p>
               <Button
                 variant="outline"
@@ -606,6 +747,161 @@ const UserDashboard: React.FC = () => {
             />
           </div>
 
+          {/* Education Section */}
+          <div>
+            <Label className="text-sm font-semibold text-gray-700">Education</Label>
+            {(userData.education || []).map((edu, idx) => (
+              <div key={idx} className="flex flex-col md:flex-row gap-2 mb-2 items-center">
+                <Input
+                  className="border-gray-300 focus:border-blue-500"
+                  placeholder="Institution"
+                  value={edu.institution}
+                  onChange={e => {
+                    const updated = [...(userData.education || [])];
+                    updated[idx].institution = e.target.value;
+                    setUserData({ ...userData, education: updated });
+                  }}
+                />
+                <Input
+                  className="border-gray-300 focus:border-blue-500"
+                  placeholder="Degree"
+                  value={edu.degree}
+                  onChange={e => {
+                    const updated = [...(userData.education || [])];
+                    updated[idx].degree = e.target.value;
+                    setUserData({ ...userData, education: updated });
+                  }}
+                />
+                <Input
+                  className="border-gray-300 focus:border-blue-500"
+                  placeholder="Year"
+                  value={edu.year}
+                  onChange={e => {
+                    const updated = [...(userData.education || [])];
+                    updated[idx].year = e.target.value;
+                    setUserData({ ...userData, education: updated });
+                  }}
+                />
+                <Input
+                  className="border-gray-300 focus:border-blue-500"
+                  placeholder="GPA (optional)"
+                  value={edu.gpa || ''}
+                  onChange={e => {
+                    const updated = [...(userData.education || [])];
+                    updated[idx].gpa = e.target.value;
+                    setUserData({ ...userData, education: updated });
+                  }}
+                />
+                <Button variant="destructive" size="sm" onClick={() => {
+                  const updated = [...(userData.education || [])];
+                  updated.splice(idx, 1);
+                  setUserData({ ...userData, education: updated });
+                }}>Remove</Button>
+              </div>
+            ))}
+            <Button variant="outline" size="sm" className="mt-2" onClick={() => setUserData({ ...userData, education: [...(userData.education || []), { institution: '', degree: '', year: '', gpa: '' }] })}>Add Education</Button>
+          </div>
+
+          {/* Experience Section */}
+          <div>
+            <Label className="text-sm font-semibold text-gray-700">Experience</Label>
+            {(userData.experience || []).map((exp, idx) => (
+              <div key={idx} className="flex flex-col md:flex-row gap-2 mb-2 items-center">
+                <Input
+                  className="border-gray-300 focus:border-blue-500"
+                  placeholder="Company"
+                  value={exp.company}
+                  onChange={e => {
+                    const updated = [...(userData.experience || [])];
+                    updated[idx].company = e.target.value;
+                    setUserData({ ...userData, experience: updated });
+                  }}
+                />
+                <Input
+                  className="border-gray-300 focus:border-blue-500"
+                  placeholder="Position"
+                  value={exp.position}
+                  onChange={e => {
+                    const updated = [...(userData.experience || [])];
+                    updated[idx].position = e.target.value;
+                    setUserData({ ...userData, experience: updated });
+                  }}
+                />
+                <Input
+                  className="border-gray-300 focus:border-blue-500"
+                  placeholder="Duration"
+                  value={exp.duration}
+                  onChange={e => {
+                    const updated = [...(userData.experience || [])];
+                    updated[idx].duration = e.target.value;
+                    setUserData({ ...userData, experience: updated });
+                  }}
+                />
+                <Input
+                  className="border-gray-300 focus:border-blue-500"
+                  placeholder="Description"
+                  value={exp.description}
+                  onChange={e => {
+                    const updated = [...(userData.experience || [])];
+                    updated[idx].description = e.target.value;
+                    setUserData({ ...userData, experience: updated });
+                  }}
+                />
+                <Button variant="destructive" size="sm" onClick={() => {
+                  const updated = [...(userData.experience || [])];
+                  updated.splice(idx, 1);
+                  setUserData({ ...userData, experience: updated });
+                }}>Remove</Button>
+              </div>
+            ))}
+            <Button variant="outline" size="sm" className="mt-2" onClick={() => setUserData({ ...userData, experience: [...(userData.experience || []), { company: '', position: '', duration: '', description: '' }] })}>Add Experience</Button>
+          </div>
+
+          {/* Projects Section */}
+          <div>
+            <Label className="text-sm font-semibold text-gray-700">Projects</Label>
+            {(userData.projects || []).map((proj, idx) => (
+              <div key={idx} className="flex flex-col md:flex-row gap-2 mb-2 items-center">
+                <Input
+                  className="border-gray-300 focus:border-blue-500"
+                  placeholder="Project Name"
+                  value={proj.name}
+                  onChange={e => {
+                    const updated = [...(userData.projects || [])];
+                    updated[idx].name = e.target.value;
+                    setUserData({ ...userData, projects: updated });
+                  }}
+                />
+                <Input
+                  className="border-gray-300 focus:border-blue-500"
+                  placeholder="Tech Stack (comma separated)"
+                  value={proj.tech}
+                  onChange={e => {
+                    const updated = [...(userData.projects || [])];
+                    updated[idx].tech = e.target.value;
+                    setUserData({ ...userData, projects: updated });
+                  }}
+                />
+                <Input
+                  className="border-gray-300 focus:border-blue-500"
+                  placeholder="Description"
+                  value={proj.description}
+                  onChange={e => {
+                    const updated = [...(userData.projects || [])];
+                    updated[idx].description = e.target.value;
+                    setUserData({ ...userData, projects: updated });
+                  }}
+                />
+                <Button variant="destructive" size="sm" onClick={() => {
+                  const updated = [...(userData.projects || [])];
+                  updated.splice(idx, 1);
+                  setUserData({ ...userData, projects: updated });
+                }}>Remove</Button>
+              </div>
+            ))}
+            <Button variant="outline" size="sm" className="mt-2" onClick={() => setUserData({ ...userData, projects: [...(userData.projects || []), { name: '', tech: '', description: '' }] })}>Add Project</Button>
+          </div>
+
           {/* Availability */}
           <div>
             <Label className="text-sm font-semibold text-gray-700">Availability</Label>
@@ -641,6 +937,12 @@ const UserDashboard: React.FC = () => {
             }`}>
               {saveMessage.text}
             </div>
+          )}
+          {resumeStatus && (
+            <div className="mt-2 text-green-600 text-sm font-medium">{resumeStatus}</div>
+          )}
+          {uploadedResume && (
+            <div className="mt-1 text-blue-700 text-xs">Uploaded: {uploadedResume}</div>
           )}
         </CardContent>
       </Card>
@@ -757,6 +1059,38 @@ const UserDashboard: React.FC = () => {
           )}
         </div>
 
+        {/* Video Generation Options */}
+        <div className="space-y-4">
+          <h3 className="text-lg font-semibold text-gray-800">Video Generation Options</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="gender">Voice Gender</Label>
+              <Select value={gender} onValueChange={setGender}>
+                <SelectTrigger id="gender">
+                  <SelectValue placeholder="Select gender" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="male">Male</SelectItem>
+                  <SelectItem value="female">Female</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="nationality">Voice Accent</Label>
+              <Select value={nationality} onValueChange={setNationality}>
+                <SelectTrigger id="nationality">
+                  <SelectValue placeholder="Select accent" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="default">Default</SelectItem>
+                  <SelectItem value="india">Indian</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
+
         {/* Generate Video Button */}
         <div className="space-y-4">
           <Button
@@ -768,62 +1102,51 @@ const UserDashboard: React.FC = () => {
             {isGeneratingVideo ? 'Generating Video...' : 'Generate Pitch Video'}
           </Button>
           
-          {isGeneratingVideo && (
-            <div className="space-y-2">
-              <div className="w-full bg-purple-200 rounded-full h-2">
-                <div className="bg-purple-600 h-2 rounded-full animate-pulse" style={{ width: '60%' }}></div>
-              </div>
-              <p className="text-sm text-purple-600 text-center">Creating your personalized video...</p>
+          {isGeneratingVideo && videoProgress && (
+            <div className="mt-2 text-purple-700 text-center text-sm">
+              {videoProgress}
             </div>
           )}
         </div>
 
         {/* Generated Video Display */}
-        {hasGeneratedVideo && (
+        {hasGeneratedVideo && userData?.videoUrl && (
           <div className="space-y-4">
             <h4 className="text-lg font-semibold text-gray-800">Generated Pitch Video</h4>
-            <div className="bg-gray-900 rounded-lg aspect-video flex items-center justify-center relative overflow-hidden">
-              {(userData as UserData & { videoUrl?: string })?.videoUrl ? (
+            {/\.(mp4|webm|ogg)$/i.test(userData.videoUrl)
+              ? (
+                <video
+                  src={userData.videoUrl}
+                  controls
+                  className="w-full rounded-lg border"
+                  style={{ maxHeight: '400px' }}
+                >
+                  Your browser does not support the video tag.
+                </video>
+              )
+              : (
                 <iframe
-                  src={userData?.videoUrl || ''}
-                  className="w-full h-full"
+                  src={userData.videoUrl}
+                  className="w-full rounded-lg border"
+                  style={{ maxHeight: '400px', minHeight: '300px' }}
                   allowFullScreen
+                  title="Pitch Video"
+                  frameBorder={0}
                 />
-              ) : (
-                <div className="text-center text-white">
-                  <Play className="w-16 h-16 mx-auto mb-4 opacity-75" />
-                  <p className="text-lg font-medium">Your Pitch Video</p>
-                  <p className="text-sm opacity-75">AI Generated • 1 minute</p>
-                </div>
-              )}
-              <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <Button size="sm" className="bg-white text-black hover:bg-gray-200">
-                    <Play className="w-4 h-4" />
-                  </Button>
-                  <span className="text-white text-sm">0:00 / 1:00</span>
-                </div>
-                <Button size="sm" variant="outline" className="text-white border-white hover:bg-white hover:text-black">
-                  Download
-                </Button>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                onClick={handleGenerateVideo}
-                className="border-purple-200 text-purple-600 hover:bg-purple-50"
-              >
-                Regenerate Video
-              </Button>
-              <Button
-                variant="outline"
-                className="border-blue-200 text-blue-600 hover:bg-blue-50"
-              >
-                Share Video
-              </Button>
-            </div>
+              )
+            }
           </div>
+        )}
+
+        {/* Stop Video Generation Button */}
+        {isGeneratingVideo && videoJobId && (
+          <Button
+            onClick={handleStopVideoJob}
+            className="w-full mt-2 bg-red-600 hover:bg-red-700 text-white font-semibold"
+            disabled={!isGeneratingVideo}
+          >
+            Stop Video Generation
+          </Button>
         )}
       </CardContent>
     </Card>

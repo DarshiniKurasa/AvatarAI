@@ -22,7 +22,11 @@ const {
   getPublicPitch,
   getUserById,
   getAllUsers,
-  getLeaderboard // Add this line
+  getLeaderboard,
+  generateAvatarVideo,
+  generateAvatarVideoAsync,
+  getVideoJobStatus,
+  stopVideoJob
 } = require("../controllers/userController");
 
 const authMiddleware = require("../middleware/authMiddleware");
@@ -44,7 +48,14 @@ router.use(authMiddleware);
 // User profile
 router.get("/profile", getProfile);
 router.put("/profile", updateProfile);
-router.post("/resume", uploadResume);
+
+// Configure multer storage for avatar uploads
+const storage = multer.memoryStorage();
+const avatarUpload = multer({ storage: storage });
+const resumeUpload = multer({ storage: storage });
+
+// User profile
+router.post("/resume", resumeUpload.single('file'), uploadResume);
 
 // Pitch
 router.post("/pitch", createPitch);
@@ -66,30 +77,14 @@ router.get("/", async (req, res) => {
   }
 });
 
-// ✅ Configure avatar upload
-// Add these imports at the top of the file
-// Configure multer storage for avatar uploads
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    const uploadDir = path.join(__dirname, "../uploads/avatars");
-    // Create directory if it doesn't exist
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const ext = path.extname(file.originalname);
-    cb(null, 'avatar-' + uniqueSuffix + ext);
-  }
-});
-
-const avatarUpload = multer({ storage: storage });
-
 // ✅ Avatar routes
 // Add this route before the module.exports line
 router.post("/avatar", authMiddleware, avatarUpload.single("avatar"), uploadAvatar);
 router.get("/avatar", authMiddleware, getAvatar);
+
+// Avatar video generation
+router.post("/avatar/generate-video", generateAvatarVideoAsync);
+router.get("/avatar/generate-video/status/:jobId", getVideoJobStatus);
+router.post("/avatar/generate-video/stop/:jobId", stopVideoJob);
 
 module.exports = router;

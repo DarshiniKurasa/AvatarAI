@@ -8,14 +8,57 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import axios from 'axios';
+import type { Swiper as SwiperClass } from 'swiper';
 
 import 'swiper/css';
 import 'swiper/css/navigation';
 import 'swiper/css/pagination';
 import 'swiper/css/effect-cards';
 
+interface CandidateExperience {
+  position: string;
+  endDate?: string;
+}
+
+interface Candidate {
+  _id: string;
+  id: string;
+  fullName: string;
+  name: string;
+  role: string;
+  experience: { position: string; company: string; duration: string; description: string }[];
+  avatar?: string;
+  skills?: string[];
+  email: string;
+  phone?: string;
+  location?: string;
+  profileLikes?: number;
+  videoUrl?: string | null;
+  pitch?: string;
+  about?: string;
+  education?: { degree: string; institution: string; year: string; gpa?: string }[];
+  projects?: { name: string; tech: string[]; description: string }[];
+}
+
+interface User {
+  _id: string;
+  fullName: string;
+  avatar?: string;
+  skills?: string[];
+  email: string;
+  phone?: string;
+  location?: string;
+  profileLikes?: number;
+  videoUrl?: string | null;
+  pitch?: string;
+  about?: string;
+  education?: { degree: string; institution: string; year: string; gpa?: string }[];
+  experience?: { position: string; company: string; duration: string; description: string }[];
+  projects?: { name: string; tech: string[]; description: string }[];
+}
+
 interface PitchCarouselProps {
-  onCandidateSelect: (candidate: any) => void;
+  onCandidateSelect: (candidate: Candidate) => void;
   isRecruiterDashboard?: boolean;
 }
 
@@ -23,7 +66,7 @@ const PitchCarousel: React.FC<PitchCarouselProps> = ({ onCandidateSelect, isRecr
   const [currentIndex, setCurrentIndex] = useState(0);
   const [notes, setNotes] = useState<{[key: string]: string}>({});
   const [actions, setActions] = useState<{[key: string]: 'shortlist' | 'reject' | 'bookmark' | null}>({});
-  const [candidates, setCandidates] = useState<any[]>([]);
+  const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [loading, setLoading] = useState(true);
   const [visibleCards, setVisibleCards] = useState<Set<string>>(new Set());
   const [likes, setLikes] = useState<{[key: string]: number}>({});
@@ -32,16 +75,15 @@ const PitchCarousel: React.FC<PitchCarouselProps> = ({ onCandidateSelect, isRecr
   const [playingVideos, setPlayingVideos] = useState<{[key: string]: boolean}>({});
 
   // Helper function to get display position
-  const getDisplayPosition = (user: any) => {
+  const getDisplayPosition = (user: { experience?: CandidateExperience[] }): string => {
     if (user.experience && user.experience.length > 0) {
       // Sort experiences by end date (most recent first)
-      const sortedExperience = user.experience.sort((a: any, b: any) => {
+      const sortedExperience = user.experience.sort((a, b) => {
         if (!a.endDate && b.endDate) return -1; // Current job (no end date) comes first
         if (a.endDate && !b.endDate) return 1;
         if (!a.endDate && !b.endDate) return 0;
-        return new Date(b.endDate).getTime() - new Date(a.endDate).getTime();
+        return new Date(b.endDate!).getTime() - new Date(a.endDate!).getTime();
       });
-      
       return sortedExperience[0].position || 'Professional';
     }
     return 'Student';
@@ -55,7 +97,7 @@ const PitchCarousel: React.FC<PitchCarouselProps> = ({ onCandidateSelect, isRecr
         const role = localStorage.getItem("userRole");
         setUserRole(role || "");
 
-        let transformedData: any[] = [];
+        let transformedData: Candidate[] = [];
 
         // If we're on the recruiter dashboard, only fetch bookmarked candidates
         if (isRecruiterDashboard && role === "recruiter") {
@@ -63,24 +105,29 @@ const PitchCarousel: React.FC<PitchCarouselProps> = ({ onCandidateSelect, isRecr
             headers: { Authorization: `Bearer ${token}` }
           });
           
-          transformedData = bookmarksRes.data.map((user: any) => ({
+          transformedData = bookmarksRes.data.map((user: Candidate): Candidate => ({
+            _id: user._id,
             id: user._id,
+            fullName: user.fullName,
             name: user.fullName,
-            role: getDisplayPosition(user), // Use the helper function instead of user.role
-            experience: user.experience?.length ? `${user.experience.length}+ years` : '1+ years',
+            role: getDisplayPosition(user),
+            experience: user.experience || [],
             avatar: user.avatar || 'https://images.unsplash.com/photo-1649972904349-6e44c42644a7?w=400&h=400&fit=crop&crop=face',
             skills: user.skills || ['React', 'JavaScript'],
             email: user.email,
             phone: user.phone || 'Not provided',
             location: user.location || 'Remote',
             profileLikes: user.profileLikes || 0,
-            videoUrl: user.videoUrl || null, // Include video URL
-            pitch: user.pitch || 'No pitch available'
+            videoUrl: user.videoUrl || null,
+            pitch: user.pitch || 'No pitch available',
+            about: user.about || 'No description available',
+            education: user.education || [],
+            projects: user.projects || []
           }));
           
           // Set all candidates as bookmarked
-          const bookmarkedMap: {[key: string]: boolean} = {};
-          transformedData.forEach((candidate: any) => {
+          const bookmarkedMap: { [key: string]: boolean } = {};
+          transformedData.forEach((candidate) => {
             bookmarkedMap[candidate.id] = true;
           });
           setBookmarks(bookmarkedMap);
@@ -90,19 +137,23 @@ const PitchCarousel: React.FC<PitchCarouselProps> = ({ onCandidateSelect, isRecr
             headers: { Authorization: `Bearer ${token}` },
           });
           
-          transformedData = res.data.map((user: any) => ({
+          transformedData = res.data.map((user: Candidate): Candidate => ({
+            _id: user._id,
             id: user._id,
+            fullName: user.fullName,
             name: user.fullName,
-            role: getDisplayPosition(user), // Use the helper function instead of user.role
-            experience: user.experience?.length ? `${user.experience.length}+ years` : '1+ years',
+            role: getDisplayPosition(user),
+            experience: user.experience || [],
             avatar: user.avatar || 'https://images.unsplash.com/photo-1649972904349-6e44c42644a7?w=400&h=400&fit=crop&crop=face',
             skills: user.skills || ['React', 'JavaScript'],
             email: user.email,
             phone: user.phone || 'Not provided',
             location: user.location || 'Remote',
             profileLikes: user.profileLikes || 0,
-            videoUrl: user.videoUrl || null, // Include video URL
-            about: user.about || 'No description available'
+            videoUrl: user.videoUrl || null,
+            about: user.about || 'No description available',
+            education: user.education || [],
+            projects: user.projects || []
           }));
 
           if (role === "recruiter") {
@@ -110,8 +161,8 @@ const PitchCarousel: React.FC<PitchCarouselProps> = ({ onCandidateSelect, isRecr
               headers: { Authorization: `Bearer ${token}` }
             });
             
-            const bookmarkedMap: {[key: string]: boolean} = {};
-            bookmarksRes.data.forEach((candidate: any) => {
+            const bookmarkedMap: { [key: string]: boolean } = {};
+            bookmarksRes.data.forEach((candidate: Candidate) => {
               bookmarkedMap[candidate._id] = true;
             });
             setBookmarks(bookmarkedMap);
@@ -119,11 +170,11 @@ const PitchCarousel: React.FC<PitchCarouselProps> = ({ onCandidateSelect, isRecr
         }
 
         setCandidates(transformedData);
-        setVisibleCards(new Set(transformedData.map((c: any) => c.id)));
+        setVisibleCards(new Set(transformedData.map((c: Candidate) => c.id)));
         
         // Initialize likes
         const initialLikes: {[key: string]: number} = {};
-        transformedData.forEach((user: any) => {
+        transformedData.forEach((user: Candidate) => {
           initialLikes[user.id] = user.profileLikes || 0;
         });
         setLikes(initialLikes);
@@ -203,7 +254,7 @@ const PitchCarousel: React.FC<PitchCarouselProps> = ({ onCandidateSelect, isRecr
     setNotes(prev => ({ ...prev, [candidateId]: note }));
   };
 
-  const handleSlideChange = (swiper: any) => {
+  const handleSlideChange = (swiper: SwiperClass) => {
     const activeIndex = swiper.activeIndex;
     setCurrentIndex(activeIndex);
     const visibleCandidates = candidates.filter(c => visibleCards.has(c.id));
@@ -313,14 +364,11 @@ const PitchCarousel: React.FC<PitchCarouselProps> = ({ onCandidateSelect, isRecr
                             </div>
                           </div>
                           <div className="text-right">
-                            <div className="flex items-center text-yellow-500 mb-1">
-                              <Heart 
-                                className="w-4 h-4 mr-1 cursor-pointer hover:fill-current transition-colors" 
-                                onClick={() => handleLike(candidate.id)}
-                              />
-                              <span className="text-sm">{likes[candidate.id] || 0}</span>
-                            </div>
-                            <p className="text-sm text-gray-600">{candidate.experience}</p>
+                            <p className="text-sm text-gray-600">
+                              {Array.isArray(candidate.experience) && candidate.experience.length > 0
+                                ? candidate.experience[0].position + (candidate.experience.length > 1 ? ` (+${candidate.experience.length - 1} more)` : '')
+                                : 'No experience'}
+                            </p>
                           </div>
                         </div>
 
@@ -334,12 +382,12 @@ const PitchCarousel: React.FC<PitchCarouselProps> = ({ onCandidateSelect, isRecr
 
                         {/* Skills */}
                         <div className="flex flex-wrap gap-2 mb-4">
-                          {candidate.skills.slice(0, 4).map((skill) => (
+                          {candidate.skills?.slice(0, 4).map((skill) => (
                             <Badge key={skill} className="bg-blue-100 text-blue-700">
                               {skill}
                             </Badge>
                           ))}
-                          {candidate.skills.length > 4 && (
+                          {candidate.skills?.length > 4 && (
                             <Badge className="bg-gray-100 text-gray-600">
                               +{candidate.skills.length - 4} more
                             </Badge>
@@ -352,29 +400,26 @@ const PitchCarousel: React.FC<PitchCarouselProps> = ({ onCandidateSelect, isRecr
                         <div className="relative bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl h-48 overflow-hidden">
                           {candidate.videoUrl ? (
                             <div className="relative w-full h-full">
-                              <iframe
-                                src={candidate.videoUrl}
-                                className="w-full h-full object-cover rounded-xl"
-                                allowFullScreen
-                                title={`${candidate.name}'s Pitch Video`}
-                                frameBorder="0"
-                              />
-                              
-                              {/* Play Button Overlay - Only show when video isn't playing
-                              {!playingVideos[candidate.id] && (
-                                <div 
-                                  className="absolute inset-0 flex items-center justify-center cursor-pointer rounded-xl bg-black/30"
-                                  onClick={() => handleVideoClick(candidate.id)}
-                                >
-                                  <motion.button
-                                    whileHover={{ scale: 1.1 }}
-                                    whileTap={{ scale: 0.95 }}
-                                    className="bg-white/20 backdrop-blur-sm text-white rounded-full p-6 hover:bg-white/30 transition-all duration-300"
+                              {/\.(mp4|webm|ogg)$/i.test(candidate.videoUrl)
+                                ? (
+                                  <video
+                                    src={candidate.videoUrl}
+                                    controls
+                                    className="w-full h-full object-contain rounded-xl bg-black"
                                   >
-                                    <Play className="w-8 h-8" />
-                                  </motion.button>
-                                </div>
-                              )} */}
+                                    Your browser does not support the video tag.
+                                  </video>
+                                )
+                                : (
+                                  <iframe
+                                    src={candidate.videoUrl}
+                                    className="w-full h-full object-contain rounded-xl bg-black"
+                                    allowFullScreen
+                                    title={`${candidate.name}'s Pitch Video`}
+                                    frameBorder="0"
+                                  />
+                                )
+                              }
                             </div>
                           ) : (
                             <div className="flex items-center justify-center h-full">
@@ -400,9 +445,37 @@ const PitchCarousel: React.FC<PitchCarouselProps> = ({ onCandidateSelect, isRecr
                             {candidate.pitch || "No pitch information available."}
                           </p>
                         </div>
-                      </div>
 
-                     
+                        {/* Education Section */}
+                        {candidate.education && candidate.education.length > 0 && (
+                          <div className="mt-3 p-3 bg-white rounded-lg border border-gray-200">
+                            <h4 className="text-sm font-medium text-gray-700 mb-1">Education</h4>
+                            <ul className="text-sm text-gray-600 space-y-1">
+                              {candidate.education.map((edu, idx) => (
+                                <li key={idx}>
+                                  <span className="font-semibold">{edu.degree}</span> at {edu.institution} ({edu.year})
+                                  {edu.gpa && <span>, GPA: {edu.gpa}</span>}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {/* Projects Section */}
+                        {candidate.projects && candidate.projects.length > 0 && (
+                          <div className="mt-3 p-3 bg-white rounded-lg border border-gray-200">
+                            <h4 className="text-sm font-medium text-gray-700 mb-1">Key Projects</h4>
+                            <ul className="text-sm text-gray-600 space-y-2">
+                              {candidate.projects.map((proj, idx) => (
+                                <li key={idx}>
+                                  <span className="font-semibold">{proj.name}</span> <span className="text-xs text-gray-500">[{proj.tech.join(', ')}]</span>
+                                  <div>{proj.description}</div>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </Card>
                 </motion.div>

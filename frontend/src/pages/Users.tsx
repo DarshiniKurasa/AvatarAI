@@ -332,11 +332,23 @@ const Users = () => {
                           </DialogHeader>
                           <div className="aspect-video">
                             {user.videoUrl ? (
-                              <iframe
-                                src={user.videoUrl}
-                                className="w-full h-full"
-                                allowFullScreen
-                              />
+                              /\.(mp4|webm|ogg)$/i.test(user.videoUrl)
+                                ? (
+                                  <video
+                                    src={user.videoUrl}
+                                    controls
+                                    className="w-full h-full"
+                                  >
+                                    Your browser does not support the video tag.
+                                  </video>
+                                )
+                                : (
+                                  <iframe
+                                    src={user.videoUrl}
+                                    className="w-full h-full"
+                                    allowFullScreen
+                                  />
+                                )
                             ) : (
                               <div className="flex items-center justify-center h-full bg-gray-100 text-gray-500">
                                 No pitch video available

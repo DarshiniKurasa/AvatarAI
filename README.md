@@ -118,6 +118,110 @@ Dynamic pitch updates over time
 
 Blockchain-based credential verification
 
+---
+
+# LinkedIn-Hack: Full Stack App Deployment & Usage Guide
+
+## 1. Environment Setup
+
+### A. Setting up `.env`
+- Copy `.env.example` to `.env` in both backend and frontend folders.
+- Fill in all required values (DB URIs, API keys, service URLs, etc.).
+
+### B. Downloading Model Files
+- Install gdown (if not already):
+  ```
+  pip install gdown
+  ```
+- Run the model download script from the project root:
+  ```
+  bash scripts/download_models.sh
+  ```
+- This will download all required models to `Avatar/checkpoints/`.
+
+## 2. Running the App Locally
+
+### A. Backend
+- Install dependencies:
+  ```
+  cd backend
+  npm install
+  ```
+- Start the backend:
+  ```
+  npm start
+  ```
+
+### B. Avatar (SadTalker) Service
+- Install dependencies:
+  ```
+  cd Avatar
+  # (Optional) Create and activate a virtual environment
+  # python3 -m venv venv
+  # source venv/bin/activate  (Linux/Mac)
+  # venv\Scripts\activate    (Windows)
+  pip install -r requirements.txt
+  ```
+- (If needed) Start the Gradio demo UI:
+  ```
+  python app_sadtalker.py
+  ```
+- For backend integration, no need to run a separate service; the backend calls the Python script directly.
+
+### C. Frontend
+- Install dependencies:
+  ```
+  cd frontend
+  npm install
+  ```
+- Start the frontend:
+  ```
+  npm start
+  ```
+
+## 3. Platform-Specific Notes
+- **Windows:** Use `venv\Scripts\activate` to activate Python virtual environments.
+- **Linux/Mac:** Use `source venv/bin/activate`.
+- Always run the model download script from the project root to ensure files go to the correct directory.
+
+## 4. Deployment Plan
+
+### A. Choose Hosting Platforms
+- **Frontend:** [Vercel](https://vercel.com/), [Netlify](https://netlify.com/), or similar.
+- **Backend:** [Render.com](https://render.com/), [Railway](https://railway.app/), [Heroku](https://heroku.com/), or a cloud VM (AWS, Azure, GCP).
+- **Avatar (Python):**
+  - If backend and avatar are on the same server, no extra step.
+  - For scaling, deploy avatar as a separate service (Render, Railway, or a VM).
+
+### B. Prepare for Deployment
+- **Frontend:**
+  - Build with:
+    ```
+    npm run build
+    ```
+  - Deploy the `build/` folder to your chosen platform.
+  - Set environment variables (API URLs) in the platform dashboard.
+- **Backend:**
+  - Zip and upload your backend folder (excluding `node_modules` and large files).
+  - Set all environment variables in the platform dashboard.
+  - Run the model download script on the server after deployment.
+- **Avatar:**
+  - If needed, run the model download script and install dependencies on the server.
+
+### C. Media Storage
+- For production, use a cloud storage provider (AWS S3, Cloudinary, ImageKit, etc.) for uploads.
+- Update your backend to use cloud storage for avatars, resumes, and videos.
+
+## 5. Testing Checklist
+After deployment, test the following:
+- [ ] Registration and login
+- [ ] Resume parsing
+- [ ] Avatar/video/photo upload and generation
+- [ ] All user flows (end-to-end)
+
+---
+
+**For any issues, check logs on your deployment platform and ensure all environment variables and model files are correctly set up.**
 
 
 
@@ -125,3 +229,5 @@ Blockchain-based credential verification
 
 
 
+
+# AvatarAI

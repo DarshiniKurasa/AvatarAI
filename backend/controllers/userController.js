@@ -1,8 +1,28 @@
+require('dotenv').config();
 const User = require("../models/User");
 const Pitch = require("../models/Pitch");
 const Avatar = require("../models/Avatar");
 const Job = require("../models/Job");
 const mixpanel = require("../mixpanel");
+const { spawn } = require('child_process');
+const path = require('path');
+const fs = require('fs');
+const multer = require('multer');
+const express = require('express');
+const ImageKit = require("imagekit");
+const axios = require('axios');
+const tmp = require('tmp');
+const { v4: uuidv4 } = require('uuid');
+
+const imagekit = new ImageKit({
+  publicKey: process.env.IMAGEKIT_PUBLIC_KEY,
+  privateKey: process.env.IMAGEKIT_PRIVATE_KEY,
+  urlEndpoint: process.env.IMAGEKIT_URL_ENDPOINT
+});
+
+const jobs = {};
+
+const upload = multer({ storage: multer.memoryStorage() });
 
 // Profile Management
 exports.getProfile = async (req, res) => {
@@ -49,84 +69,8 @@ exports.updateProfile = async (req, res) => {
 
 // Resume Management
 exports.uploadResume = async (req, res) => {
-  const { resumeText } = req.body;
-
-  try {
-    // Parse resume text to extract information
-    const educationMatch = resumeText.match(/Education:\n(.+?)(?:\n\S|$)/s);
-    const experienceMatch = resumeText.match(/Experience:\n(.+?)(?:\n\S|$)/s);
-    const skillsMatch = resumeText.match(/Skills:\n((?:- .+\n)+)/);
-    const projectsMatch = resumeText.match(/Projects:\n((?:- .+\n)+)/);
-
-    // Extract and format the data
-    const education = educationMatch ? 
-      educationMatch[1].trim().split('\n').map(edu => {
-        const parts = edu.split(',');
-        return {
-          institution: parts[0]?.trim() || '',
-          degree: parts[1]?.trim() || '',
-          year: parts[2]?.trim() || '',
-          gpa: parts[3]?.trim() || ''
-        };
-      }) : [];
-
-    const experience = experienceMatch ? 
-      experienceMatch[1].trim().split('\n').map(exp => {
-        const parts = exp.split(',');
-        return {
-          company: parts[0]?.trim() || '',
-          position: parts[1]?.trim() || '',
-          duration: parts[2]?.trim() || '',
-          description: parts[3]?.trim() || ''
-        };
-      }) : [];
-
-    const skills = skillsMatch
-      ? skillsMatch[1]
-          .split("\n")
-          .filter(Boolean)
-          .map((s) => s.replace("- ", ""))
-      : [];
-
-    const projects = projectsMatch
-      ? projectsMatch[1]
-          .split("\n")
-          .filter(Boolean)
-          .map((p) => {
-            const parts = p.replace("- ", "").split(':');
-            return {
-              name: parts[0]?.trim() || '',
-              tech: parts[1] ? parts[1].split(',').map(t => t.trim()) : [],
-              description: parts[2]?.trim() || ''
-            };
-          })
-      : [];
-
-    // Update user profile with parsed data
-    const user = await User.findByIdAndUpdate(
-      req.user.id,
-      {
-        education,
-        experience,
-        skills,
-        projects
-      },
-      { new: true }
-    ).select("-password");
-
-    mixpanel.track("Resume Uploaded", {
-      distinct_id: req.user.id,
-      skills_count: skills.length,
-      projects_count: projects.length,
-    });
-
-    res.json({ 
-      msg: "Resume parsed and profile updated successfully", 
-      user 
-    });
-  } catch (err) {
-    res.status(500).json({ msg: "Server error", error: err.message });
-  }
+  // Resume upload to ImageKit and DB is currently disabled.
+  return res.status(200).json({ msg: "Resume upload to ImageKit/DB is disabled." });
 };
 
 // Pitch Management
@@ -140,6 +84,7 @@ exports.createPitch = async (req, res) => {
   }
 
   try {
+    // Create new pitch
     const pitch = new Pitch({
       user: req.user.id,
       content,
@@ -147,6 +92,13 @@ exports.createPitch = async (req, res) => {
     });
 
     await pitch.save();
+
+    // Update User model with the new pitch and videoUrl
+    await User.findByIdAndUpdate(
+      req.user.id,
+      { pitch: content, ...(videoUrl ? { videoUrl } : {}) },
+      { new: true }
+    );
 
     mixpanel.track("Pitch Created", {
       distinct_id: req.user.id,
@@ -171,8 +123,15 @@ exports.updatePitch = async (req, res) => {
   }
 
   try {
-    let pitch = await Pitch.findOne({ user: req.user.id });
+    // Update User model
+    await User.findByIdAndUpdate(
+      req.user.id,
+      { pitch: content, ...(videoUrl ? { videoUrl } : {}) },
+      { new: true }
+    );
 
+    // Update or create Pitch model
+    let pitch = await Pitch.findOne({ user: req.user.id });
     if (pitch) {
       // Update existing pitch
       pitch = await Pitch.findOneAndUpdate(
@@ -191,7 +150,6 @@ exports.updatePitch = async (req, res) => {
         content,
         videoUrl
       });
-
       await pitch.save();
     }
 
@@ -210,10 +168,20 @@ exports.updatePitch = async (req, res) => {
 
 exports.getPitch = async (req, res) => {
   try {
-    const pitch = await Pitch.findOne({ user: req.user.id });
+    let pitch = await Pitch.findOne({ user: req.user.id });
     
     if (!pitch) {
-      return res.status(404).json({ msg: "Elevator pitch not found" });
+      // Try to get pitch from User model if not found in Pitch model
+      const user = await User.findById(req.user.id).select('pitch videoUrl');
+      if (!user || !user.pitch) {
+        return res.status(404).json({ msg: "Elevator pitch not found" });
+      }
+      // Return in the same format as Pitch model
+      return res.json({
+        user: req.user.id,
+        content: user.pitch,
+        videoUrl: user.videoUrl || null
+      });
     }
     
     res.json(pitch);
@@ -519,16 +487,19 @@ exports.getAllUsers = async (req, res) => {
 };
 
 // Avatar upload handler
-// Add this function to the exports
 exports.uploadAvatar = async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: "No file uploaded" });
     }
 
-    // Create the URL for the uploaded file
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
-    const avatarUrl = `${baseUrl}/uploads/avatars/${req.file.filename}`;
+    // Upload to ImageKit
+    const uploadResponse = await imagekit.upload({
+      file: req.file.buffer, // multer memory storage
+      fileName: req.file.originalname,
+    });
+
+    const avatarUrl = uploadResponse.url;
 
     // Update the user's avatar field in the database
     const user = await User.findByIdAndUpdate(
@@ -541,13 +512,8 @@ exports.uploadAvatar = async (req, res) => {
       return res.status(404).json({ error: "User not found" });
     }
 
-    // Track the event in mixpanel
-    mixpanel.track("Avatar Updated", {
-      distinct_id: req.user.id,
-    });
-
-    res.json({ 
-      message: "Avatar uploaded successfully", 
+    res.json({
+      message: "Avatar uploaded successfully",
       avatarUrl: avatarUrl,
       user: user
     });
@@ -610,7 +576,7 @@ exports.getLeaderboard = async (req, res) => {
           userRole = 'manager';
         }
       }
-      
+    
       // Determine title based on skills
       let title = 'Professional';
       if (user.skills && user.skills.length > 0) {
@@ -687,5 +653,196 @@ exports.getLeaderboard = async (req, res) => {
   } catch (err) {
     console.error("Error fetching leaderboard:", err);
     res.status(500).json({ msg: "Server error", error: err.message });
+  }
+};
+
+// Avatar Video Generation (multipart/form-data)
+exports.generateAvatarVideoAsync = [
+  express.json(),
+  async (req, res) => {
+    const jobId = uuidv4();
+    jobs[jobId] = { status: 'pending', progress: '', pythonProcess: null };
+    res.json({ jobId }); // Respond immediately
+
+    // Start video generation in background
+    (async () => {
+      try {
+        let avatarPath = null;
+        if (req.body.avatarUrl) {
+          let avatarUrl = req.body.avatarUrl;
+          if (avatarUrl.startsWith('http')) {
+            const tmpFile = tmp.fileSync({ postfix: path.extname(avatarUrl) });
+            const writer = fs.createWriteStream(tmpFile.name);
+            const response = await axios({
+              method: 'get',
+              url: avatarUrl,
+              responseType: 'stream'
+            });
+            response.data.pipe(writer);
+            await new Promise((resolve, reject) => {
+              writer.on('finish', resolve);
+              writer.on('error', reject);
+            });
+            avatarPath = tmpFile.name;
+            // console.log(`[VideoGen][${jobId}] Downloaded avatar image to temp file: ${avatarPath}`);
+          } else if (avatarUrl.startsWith('/')) {
+            avatarUrl = avatarUrl.slice(1);
+            avatarPath = path.join(__dirname, '..', avatarUrl);
+            if (!fs.existsSync(avatarPath)) {
+              // console.error(`[VideoGen][${jobId}] Avatar image file not found on server: ${avatarPath}`);
+              jobs[jobId] = { status: 'error', error: 'Avatar image file not found on server.' };
+              return;
+            }
+            // console.log(`[VideoGen][${jobId}] Using local avatar image: ${avatarPath}`);
+          }
+        } else {
+          // console.error(`[VideoGen][${jobId}] No avatar image provided in request.`);
+          jobs[jobId] = { status: 'error', error: 'No avatar image provided.' };
+          return;
+        }
+        const { pitch, gender, nationality } = req.body;
+        const videosDir = path.join(__dirname, '../uploads/videos');
+        if (!fs.existsSync(videosDir)) {
+          fs.mkdirSync(videosDir, { recursive: true });
+          // console.log(`[VideoGen][${jobId}] Created videos directory: ${videosDir}`);
+        }
+        const outputVideoPath = path.join(videosDir, `video-${Date.now()}.mp4`);
+        const pythonScript = path.join(__dirname, '../../Avatar/generate_video.py');
+        const pythonExecutable = process.env.PYTHON_PATH || 'python';
+        const args = [
+          '--image', avatarPath,
+          '--text', pitch,
+          '--gender', gender,
+          '--nationality', nationality,
+          '--output', outputVideoPath
+        ];
+        console.log(`[VideoGen][${jobId}] Job started: ${pythonExecutable} ${pythonScript} ...`);
+        const pythonProcess = spawn(pythonExecutable, [pythonScript, ...args], {
+          cwd: path.join(__dirname, '../../Avatar'),
+          env: { ...process.env, KMP_DUPLICATE_LIB_OK: 'TRUE' }
+        });
+        jobs[jobId].pythonProcess = pythonProcess;
+        let errorOutput = '';
+        let stdOutput = '';
+        pythonProcess.stdout.on('data', (data) => {
+          stdOutput += data.toString();
+          const msg = data.toString().trim();
+          if (/\b\d{1,3}%\b/.test(msg)) {
+            jobs[jobId].progress = msg;
+          }
+          // Remove: console.log(`[VideoGen][${jobId}] Python stdout: ${data}`);
+        });
+        pythonProcess.stderr.on('data', (data) => {
+          errorOutput += data.toString();
+          const msg = data.toString().trim();
+          if (/\b\d{1,3}%\b/.test(msg)) {
+            jobs[jobId].progress = msg;
+          }
+          // Remove: console.error(`[VideoGen][${jobId}] Python stderr: ${data}`);
+        });
+        pythonProcess.on('close', async (code) => {
+          // Only log job finish
+          console.log(`[VideoGen][${jobId}] Job finished with code: ${code}`);
+          let finalVideoPath = outputVideoPath;
+          if (!fs.existsSync(finalVideoPath)) {
+            const mp4Paths = [];
+            const regex = /([A-Z]:[^\r\n]*?\.mp4)/gi;
+            let match;
+            while ((match = regex.exec(stdOutput)) !== null) {
+              mp4Paths.push(match[1].trim());
+            }
+            let found = false;
+            for (const p of mp4Paths) {
+              if (fs.existsSync(p)) {
+                finalVideoPath = p;
+                found = true;
+                // console.log(`[VideoGen][${jobId}] Found video at alternate path: ${finalVideoPath}`);
+                break;
+              }
+            }
+            if (!found) {
+              // Only log critical error
+              console.error(`[VideoGen][${jobId}] Video file not found after Python process.`);
+              jobs[jobId] = { status: 'error', error: errorOutput };
+              return;
+            }
+          }
+          try {
+            const videoBuffer = fs.readFileSync(finalVideoPath);
+            // console.log(`[VideoGen][${jobId}] Read video file for upload, size: ${videoBuffer.length} bytes`);
+            const uploadResponse = await imagekit.upload({
+              file: videoBuffer,
+              fileName: path.basename(finalVideoPath),
+              folder: "/user-videos",
+              useUniqueFileName: true,
+            });
+            const videoUrl = uploadResponse.url;
+            // console.log(`[VideoGen][${jobId}] Uploaded video to ImageKit: ${videoUrl}`);
+            jobs[jobId] = { status: 'success', videoUrl };
+            try {
+              await User.findByIdAndUpdate(req.user.id, { videoUrl });
+              // console.log(`[VideoGen][${jobId}] Updated User DB with videoUrl.`);
+            } catch (err) {
+              // Only log critical error
+              console.error(`[VideoGen][${jobId}] Failed to update user videoUrl in DB:`, err);
+            }
+            try {
+              fs.unlinkSync(finalVideoPath);
+              // console.log(`[VideoGen][${jobId}] Deleted local video file: ${finalVideoPath}`);
+            } catch (err) {
+              // Only log critical error
+              console.error(`[VideoGen][${jobId}] Failed to delete local video file:`, err);
+            }
+            if (avatarPath && avatarPath.includes('tmp-')) {
+              try {
+                fs.unlinkSync(avatarPath);
+                // console.log(`[VideoGen][${jobId}] Deleted temp avatar file: ${avatarPath}`);
+              } catch (err) {
+                // Only log critical error
+                console.error(`[VideoGen][${jobId}] Failed to delete temp avatar file:`, err);
+              }
+            }
+            if (code !== 0) {
+              // Only log warning if process exited abnormally
+              console.warn(`[VideoGen][${jobId}] Python process exited with code ${code}, but video was generated.`);
+            }
+          } catch (err) {
+            // Only log critical error
+            console.error(`[VideoGen][${jobId}] Failed to upload video to ImageKit:`, err);
+            jobs[jobId] = { status: 'error', error: 'Failed to upload video to ImageKit' };
+          }
+        });
+        pythonProcess.on('error', (err) => {
+          // Only log critical error
+          console.error(`[VideoGen][${jobId}] Python process error:`, err);
+          jobs[jobId] = { status: 'error', error: err.message };
+        });
+      } catch (err) {
+        // Only log critical error
+        console.error(`[VideoGen][${jobId}] Server error in generateAvatarVideoAsync:`, err.message, err.stack);
+        jobs[jobId] = { status: 'error', error: err.message };
+      }
+    })();
+  }
+];
+
+exports.getVideoJobStatus = (req, res) => {
+  const job = jobs[req.params.jobId];
+  if (!job) return res.status(404).json({ message: 'Job not found' });
+  res.json(job);
+};
+
+exports.stopVideoJob = (req, res) => {
+  const job = jobs[req.params.jobId];
+  if (!job || !job.pythonProcess) {
+    return res.status(404).json({ message: 'Job or process not found' });
+  }
+  try {
+    job.pythonProcess.kill('SIGTERM');
+    job.status = 'stopped';
+    job.progress = 'Stopped by user';
+    res.json({ message: 'Job stopped' });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to stop job', error: err.message });
   }
 };
