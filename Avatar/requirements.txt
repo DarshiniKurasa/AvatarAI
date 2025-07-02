@@ -42,3 +42,15 @@ gradio
 # Misc
 yacs==0.1.8
 safetensors
+
+# Elevator Pitch & FastAPI dependencies
+fastapi==0.104.1
+uvicorn==0.24.0
+pydantic==2.4.2
+python-multipart==0.0.6
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+python-dotenv==1.0.0
+python-docx==1.0.0
+
+
