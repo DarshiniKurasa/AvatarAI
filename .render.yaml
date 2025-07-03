@@ -9,7 +9,18 @@ services:
         - backend/**
     plan: free
     rootDir: backend
+  - type: web
+    name: elevator-pitch-service
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port 8000
+    buildFilter:
+      paths:
+        - backend/ml-models/Elevator Pitch/**
+    plan: free
+    rootDir: backend/ml-models/Elevator Pitch
 
+    
   - type: web
     name: avatar-service
     env: python
