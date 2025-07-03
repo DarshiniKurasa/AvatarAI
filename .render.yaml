@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: backend-service
+    env: node
+    buildCommand: npm install --prefix backend
+    startCommand: node backend/app.js
+    buildFilter:
+      paths:
+        - backend/**
+    plan: free
+    rootDir: backend
+
+  - type: web
+    name: avatar-service
+    env: python
+    buildCommand: |
+      pip install -r requirements.txt
+      pip install gdown
+      bash ../scripts/download_models.sh
+    startCommand: python app_sadtalker.py
+    buildFilter:
+      paths:
+        - Avatar/**
+    plan: free
+    rootDir: Avatar
