@@ -2,7 +2,7 @@
 
 AVIRI transforms hiring by converting resumes into engaging AI-driven video pitches. Recruiters interact with candidate avatars via real-time chat, making talent discovery fast, visual, and interactive.
 
-**🔗 GitHub Repository**: [itsvamz/LinkedIn-Hack](https://github.com/itsvamz/LinkedIn-Hack)
+**🔗 Main Collabrative GitHub Repository**: [itsvamz/LinkedIn-Hack](https://github.com/itsvamz/LinkedIn-Hack)
 
 ---
 
